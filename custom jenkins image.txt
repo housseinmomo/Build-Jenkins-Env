@@ -1,0 +1,96 @@
+Ici ; le but sera de creer une image docker personnaliser de jenkins
+NB : Tomcat est un serveur d'applications, plus précisément un conteneur web libre de servlets et JSP. 
+
+step1 : running OS
+step2 : install java 
+step3 : export JAVA_HOME
+step4 : export download tomcat tar
+step5 : extract tomcat tar
+step6 : change the default port 
+step7 : download jenkins.war 
+step8 : start tomcat by catalina.sh run
+
+
+Example 1 : 
+
+FROM ubuntu:latest
+RUN apt-get update -y
+RUN apt-get install openjdk-8-jre -y
+RUN echo "JAVA_HOME=/usr/" >> ~/.bashrc
+ADD https://downloads.apache.org/tomcat/tomcat-9/v9.0.52/bin/apache-tomcat-9.0.52.tar.gz.sha512 /tmp
+RUN cd /tmp && tar -xvzf  apache-tomcat-9.0.52.tar.gz.sha512 
+RUN cd /tmp && mv apache-tomcat-9.0.52 /opt/
+EXPOSE 8080
+ADD https://get.jenkins.io/war-stable/2.303.1/jenkins.war /opt/apache-tomcat-9.0.52/webapps/
+CMD ["/opt/apache-tomcat-9.0.52/bin/catalina.sh" , "run"]
+
+Example 2 : 
+
+==================Dockerfile=====================
+
+FROM jenkins/jenkins:lts-jdk11
+
+MAINTAINER Nobunaga
+
+// Definir les identifiant 
+ENV JENKINS_USER admin
+ENV JENKINS_PASS admin
+
+
+// Le conteneur doit exécuter des commandes en tant que root
+USER root
+
+// Installer docker engine && Ajouter l'utilisateur jenkins dans un groupe de securite docker
+RUN apt-get update && \
+    apt-get -y install apt-transport-https \
+      ca-certificates \
+      curl \
+      gnupg2 \
+      software-properties-common && \
+    curl -fsSL https://download.docker.com/linux/$(. /etc/os-release; echo "$ID")/gpg > /tmp/dkey; apt-key add /tmp/dkey && \
+    add-apt-repository \
+      "deb [arch=amd64] https://download.docker.com/linux/$(. /etc/os-release; echo "$ID") \
+      $(lsb_release -cs) \
+      stable" && \
+   apt-get update && \
+   apt-get -y install docker-ce
+
+
+// Desactiver SetupWizard qui une instance Jenkins utilisée lors de la première exécution pour fournir un ensemble limité de services pendant l'installation initiale
+USER jenkins
+ENV JAVA_OPTS="-Djenkins.install.runSetupWizard=false
+
+# COPIER default-user.groovy /usr/share/jenkins/ref/init.groovy.d/ 
+COPIE default-user.groovy /usr/share/jenkins/ref/init.groovy.d/
+
+# COPIER et installer les plugins : Passons enfin à un ensemble de plugins qui s'installeront automatiquement
+COPIER plugins.txt /usr/share/jenkins/ref/ 
+RUN /usr/local/bin/install-plugins.sh < /usr/share/jenkins/ref/plugins.txt
+
+VOLUME /var/jenkins_home
+
+
+==============================default-user-groovy(script)=============================
+Pour configurer un utilisateur(id;password) :
+
+import jenkins.model.* 
+import hudson.security.* 
+
+def env = System.getenv() 
+
+def jenkins = Jenkins.getInstance() 
+if(!(jenkins.getSecurityRealm() instanceof HudsonPrivateSecurityRealm)) 
+    jenkins.setSecurityRealm(new HudsonPrivateSecurityRealm( ) 
+
+if (! (jenkins.getAuthorizationStrategy () instanceof GlobalMatrixAuthorizationStrategy)) 
+    jenkins.setAuthorizationStrategy (nouveau GlobalMatrixAuthorizationStrategy ()) 
+
+def user = jenkins.getSecurityRealm (). createAccount (env. JENKINS_USER , env. JENKINS_PASS ) 
+user.save () 
+jenkins.getAuthorizationStrategy ().add(Jenkins.ADMINISTRE, env. JENKINS_USER ) 
+
+jenkins.save()
+
+
+
+
